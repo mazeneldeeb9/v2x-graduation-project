@@ -73,6 +73,8 @@ void esp_mesh_p2p_tx_main(void *arg)
     data.size = sizeof(tx_buf);
     data.proto = MESH_PROTO_BIN;
     data.tos = MESH_TOS_P2P;
+    //defining mesh address bec it is not predefined
+    mesh_addr_t broadcast_addr = { .addr = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF} };
     is_running = true;
 
     while (is_running) {
@@ -81,7 +83,13 @@ void esp_mesh_p2p_tx_main(void *arg)
             ESP_LOGI(MESH_TAG, "layer:%d, rtableSize:%d, %s", mesh_layer,
                      esp_mesh_get_routing_table_size(),
                      (is_mesh_connected && esp_mesh_is_root()) ? "ROOT" : is_mesh_connected ? "NODE" : "DISCONNECT");
-            vTaskDelay(10 * 1000 / portTICK_PERIOD_MS);
+            err = esp_mesh_send(&broadcast_addr, &data, MESH_DATA_P2P, NULL, 0);
+        if (err) {
+            ESP_LOGE(MESH_TAG, "[ROOT-BROADCAST:%d] Failed to broadcast, err:0x%x", send_count, err);
+        } else if (!(send_count % 100)) {
+            ESP_LOGW(MESH_TAG, "[ROOT-BROADCAST:%d] Successfully broadcasted to all nodes", send_count);
+        }
+        vTaskDelay(10 * 1000 / portTICK_PERIOD_MS);
             continue;
         }
         esp_mesh_get_routing_table((mesh_addr_t *) &route_table,
