@@ -2,7 +2,7 @@
 #include <esp_wifi.h>
 #include <esp_now.h>
 // Set your new MAC Address
-uint8_t newMACAddress[] = {0x32, 0xAE, 0xA4, 0x07, 0x0D, 0x10};
+uint8_t newMACAddress[] = {0x32, 0xAE, 0xA4, 0x07, 0x0D, 0x20};
 //uint8_t recieverAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 uint8_t baseMac[6];
@@ -37,6 +37,12 @@ void receiveCallback(const esp_now_recv_info_t *recv_info, const uint8_t *data, 
   // Format the MAC address
    Serial.printf("Received message from :");
    printMacAddress(recv_info->src_addr);
+   Serial.print("Rssi Is :");
+   Serial.println(recv_info->rx_ctrl->rssi);
+    Serial.print("Noise floor :");
+   Serial.println(recv_info->rx_ctrl->noise_floor);
+   Serial.print("timestamp :");
+   Serial.println(recv_info->rx_ctrl->timestamp);
   // Send Debug log message to the serial port
   Serial.printf("Received message is %s\n", buffer);
  
@@ -79,6 +85,7 @@ esp_now_peer_info_t peerInfo = {};
 }
 
 void setup(){
+  
   Serial.begin(115200);
   
   WiFi.mode(WIFI_STA);
@@ -110,5 +117,20 @@ void setup(){
 }
  
 void loop(){
-broadCast("hello From esp");
+  
+ for (int i = 0;; i++) {
+    if (i >= 1000) {
+        i = 0;
+    }
+    String x = String(i);
+    Serial.print("X = ");
+    Serial.println(x);
+    Serial.print("I = ");
+    Serial.println(i);
+    broadCast(x);
+    delay(500);
+}
+
+
+
 }
