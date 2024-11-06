@@ -1,12 +1,27 @@
 #include <WiFi.h>
 #include <esp_wifi.h>
 #include <esp_now.h>
+#include <TinyGPS++.h>
+#include <HardwareSerial.h>
+
+
 // Set your new MAC Address
 uint8_t newMACAddress[] = {0x32, 0xAE, 0xA4, 0x07, 0x0D, 0x20};
 //uint8_t recieverAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 uint8_t broadcastAddress[] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 uint8_t baseMac[6];
 
+
+TinyGPSPlus gps;
+HardwareSerial gpsSerial(1); // Use Serial1 for GPS module
+
+// Structure to hold GPS data
+typedef struct struct_message {
+    float latitude;
+    float longitude;
+} struct_message;
+
+struct_message myData;
 
 void printMacAddress(const uint8_t *mac) {
   Serial.printf("MAC Address: %02x:%02x:%02x:%02x:%02x:%02x\n",
@@ -37,15 +52,39 @@ void receiveCallback(const esp_now_recv_info_t *recv_info, const uint8_t *data, 
   // Format the MAC address
    Serial.printf("Received message from :");
    printMacAddress(recv_info->src_addr);
-   Serial.print("Rssi Is :");
-   Serial.println(recv_info->rx_ctrl->rssi);
-    Serial.print("Noise floor :");
-   Serial.println(recv_info->rx_ctrl->noise_floor);
-   Serial.print("timestamp :");
-   Serial.println(recv_info->rx_ctrl->timestamp);
+  //  Serial.print("Rssi Is :");
+  //  Serial.println(recv_info->rx_ctrl->rssi);
+  //   Serial.print("Noise floor :");
+  //  Serial.println(recv_info->rx_ctrl->noise_floor);
+  //  Serial.print("timestamp :");
+  //  Serial.println(recv_info->rx_ctrl->timestamp);
   // Send Debug log message to the serial port
-  Serial.printf("Received message is %s\n", buffer);
- 
+  //Serial.printf("Received message is %s\n", buffer);
+  Serial.println("--------------------------------------------");
+    Serial.print("Received message is ");
+    float latitude = (buffer[0] << 24) | (buffer[1] << 16) | (buffer[2] << 8) | buffer[3];
+    float longitude = (buffer[4] << 24) | (buffer[5] << 16) | (buffer[6] << 8) | buffer[7];
+    
+    latitude /= 1000000;
+    longitude /= 1000000;
+    Serial.print("Latitude : ");
+    Serial.print(latitude, 6);
+    Serial.print("-----");
+    Serial.print("Longitude : ");
+    Serial.println(longitude, 6);
+    Serial.println("--------------------------------------------");
+
+// if (strncmp(buffer,"From ", 5) != 0) {
+  
+//   char srcMac [25];
+//   sprintf(srcMac, "From %02X:%02X:%02X:%02X:%02X:%02X",
+//             recv_info->src_addr[0], recv_info->src_addr[1], recv_info->src_addr[2],
+//             recv_info->src_addr[3], recv_info->src_addr[4], recv_info->src_addr[5]);
+//   String message_with_mac = String (srcMac) + " : " + String(buffer);
+//   broadCast(message_with_mac);
+// }
+// broadCast(String (buffer));
+
 }
 
 
@@ -87,10 +126,11 @@ esp_now_peer_info_t peerInfo = {};
 void setup(){
   
   Serial.begin(115200);
-  
-  WiFi.mode(WIFI_STA);
+  gpsSerial.begin(9600, SERIAL_8N1, 16, 17); // RX, TX for GPS module
 
-  Serial.print("[DEFAULT] ESP32 Board MAC Address: ");
+  WiFi.mode(WIFI_STA);
+   esp_wifi_set_protocol( WIFI_IF_STA , WIFI_PROTOCOL_LR);
+Serial.print("[DEFAULT] ESP32 Board MAC Address: ");
   readMacAddress();
     esp_err_t err = esp_wifi_set_mac(WIFI_IF_STA, &newMACAddress[0]);
   if (err == ESP_OK) {
@@ -112,25 +152,54 @@ void setup(){
     Serial.println("ESP-NOW Init Failed");
     delay(3000);
     ESP.restart();
-  }
-
-}
- 
-void loop(){
-  
- for (int i = 0;; i++) {
-    if (i >= 1000) {
-        i = 0;
+  }}
+ void loop() {
+    while (gpsSerial.available() > 0) {
+        char c = gpsSerial.read();
+        Serial.write(c); // Print incoming data for visibility
+        gps.encode(c);
     }
-    String x = String(i);
-    Serial.print("X = ");
-    Serial.println(x);
-    Serial.print("I = ");
-    Serial.println(i);
-    broadCast(x);
-    delay(500);
-}
+    if (gps.location.isUpdated()) {
+        //broadCast("omar");
+        myData.latitude = gps.location.lat();
+        myData.longitude = gps.location.lng();
+        Serial.print("Latitude: ");
+        Serial.println(myData.latitude, 6);
+        Serial.print(" Longitude: ");
+        Serial.println(myData.longitude, 6);
+        
+        // String y = String(myData.latitude) + " : " + String(myData.longitude);
+        // broadCast(y); // Send GPS data via ESP-NOW
+        char lat[4], lon[4];
+        long temp = myData.latitude * 1000000;
+        lat[0] = temp >> 24;
+        lat[1] = (temp >> 16) & 0xFF;
+        lat[2] = (temp >> 8) & 0xFF;
+        lat[3] = temp & 0xFF;
+        temp = myData.longitude * 1000000;
+        lon[0] = temp >> 24;
+        lon[1] = (temp >> 16) & 0xFF;
+        lon[2] = (temp >> 8) & 0xFF;
+        lon[3] = temp & 0xFF;
 
+        String message = String(lat[0]) + String(lat[1]) + String(lat[2]) + String(lat[3]) + String(lon[0]) + String(lon[1]) + String(lon[2]) + String(lon[3]);
 
+        broadCast(message);
 
+        delay(1000);
+
+    }
+
+//      for (int i = 0;; i++) {
+//     if (i >= 1000) {
+//         i = 0;
+//     }
+//     String x = String(i);
+//     Serial.print("X = ");
+//     Serial.println(x);
+//     Serial.print("I = ");
+//     Serial.println(i);
+//     broadCast(x);
+//     delay(500);
+// }
 }
